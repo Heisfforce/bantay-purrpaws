@@ -12,6 +12,7 @@ Use this checklist before and after deploying BantayPurrPaws.
 - [ ] Brevo account created; API key and sender verified
 - [ ] `DATA_ENCRYPTION_KEY` generated and saved securely
 - [ ] Google OAuth credentials ready (if using Google Sign-In)
+- [ ] `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `APP_URL`, `GOOGLE_REDIRECT_URI` set in hosting Variables (Railway) or `.env` (local)
 
 ---
 

@@ -1,7 +1,27 @@
 <?php
 /**
- * Load key=value pairs from a .env file into getenv() / $_ENV.
+ * Environment helpers — load .env and read variables.
  */
+declare(strict_types=1);
+
+function env_value(string $key, mixed $default = ''): mixed
+{
+    $v = $_ENV[$key] ?? getenv($key);
+    if ($v === false || $v === null || $v === '') {
+        return $default;
+    }
+    return $v;
+}
+
+function env_bool(string $key, bool $default = false): bool
+{
+    $v = env_value($key, null);
+    if ($v === null || $v === '') {
+        return $default;
+    }
+    return in_array(strtolower((string) $v), ['1', 'true', 'yes', 'on'], true);
+}
+
 function load_env_file(string $path): void
 {
     if (!is_readable($path)) {

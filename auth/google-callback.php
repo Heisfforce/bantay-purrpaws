@@ -10,6 +10,14 @@ require_once dirname(__DIR__) . '/includes/otp.php';
 googleOAuthDebugErrors();
 startSession();
 
+if (!isGoogleOAuthConfigured()) {
+    flash('error', 'Google Sign-In is not configured on this server.');
+    header('Location: ' . url('login.php'));
+    exit;
+}
+
+googleOAuthLoadDeps();
+
 if (isLoggedIn()) {
     header('Location: ' . url(isAdmin() ? 'admin/dashboard.php' : 'dashboard.php'));
     exit;

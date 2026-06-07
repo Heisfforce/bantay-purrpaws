@@ -41,7 +41,7 @@ function db_config_error_response(): void {
     header('Content-Type: text/html; charset=utf-8');
     echo '<!DOCTYPE html><html><head><title>Configuration Required</title></head><body>';
     echo '<h1>Database Not Configured</h1>';
-    echo '<p>Copy <code>.env.example</code> to <code>.env</code> and set your InfinityFree MySQL credentials.</p>';
+    echo '<p>Copy <code>.env.example</code> to <code>.env</code> (or set hosting Variables) and configure <code>DB_HOST</code>, <code>DB_NAME</code>, <code>DB_USER</code>, and <code>DB_PASSWORD</code>.</p>';
     if (APP_DEBUG) {
         echo '<p>See <code>docs/DEPLOY_INFINITYFREE.md</code> for setup steps.</p>';
     }

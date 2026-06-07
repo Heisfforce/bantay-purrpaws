@@ -17,10 +17,14 @@ if (!$error && !empty($_SESSION['force_relogin_msg'])) {
 }
 
 if (isset($_GET['google'])) {
-    $state = bin2hex(random_bytes(16));
-    $_SESSION['oauth_state'] = $state;
-    header('Location: ' . googleAuthUrl($state));
-    exit;
+    if (!isGoogleOAuthConfigured()) {
+        $error = 'Google Sign-In is not configured on this server. Set GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET in hosting Variables or .env.';
+    } else {
+        $state = bin2hex(random_bytes(16));
+        $_SESSION['oauth_state'] = $state;
+        header('Location: ' . googleAuthUrl($state));
+        exit;
+    }
 }
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -198,6 +202,7 @@ $initialStep    = sanitize($_GET['step'] ?? '');
             <p>Sign in to report strays, adopt pets, and stay updated.</p>
         </div>
 
+        <?php if (isGoogleOAuthConfigured()): ?>
         <!-- Google Sign In -->
         <a href="?google=1" class="card-btn-google">
             <svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true">
@@ -210,6 +215,7 @@ $initialStep    = sanitize($_GET['step'] ?? '');
         </a>
 
         <div class="card-divider"><span>or with email</span></div>
+        <?php endif; ?>
 
         <!-- Security Steps -->
         <div class="card-mfa-steps" id="mfaSteps">

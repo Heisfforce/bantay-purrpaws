@@ -10,31 +10,84 @@
  *        https://your-production-domain.com/auth/google-callback.php
  *        http://localhost:8000/auth/google-callback.php
  *      Visit /auth/oauth-setup.php on each host to copy the exact URI Google expects.
- *   3. Set GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, and GOOGLE_REDIRECT_URI in .env
+ *   3. Set GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, APP_URL, and optionally
+ *      GOOGLE_REDIRECT_URI in hosting env / .env (see .env.example)
  */
 
-require_once __DIR__ . '/db.php';
+if (!defined('APP_ENV')) {
+    require_once dirname(__DIR__) . '/config/config.php';
+}
 require_once __DIR__ . '/paths.php';
-require_once __DIR__ . '/notifications.php';
-require_once __DIR__ . '/sensitive-data.php';
-require_once __DIR__ . '/users.php';
+
+/** Load DB/user helpers only when handling sign-in (keeps oauth-setup lightweight). */
+function googleOAuthLoadDeps(): void {
+    static $loaded = false;
+    if ($loaded) {
+        return;
+    }
+    require_once __DIR__ . '/db.php';
+    require_once __DIR__ . '/notifications.php';
+    require_once __DIR__ . '/sensitive-data.php';
+    require_once __DIR__ . '/users.php';
+    $loaded = true;
+}
 
 /** Set APP_DEBUG=1 in hosting env to surface PHP errors on OAuth pages. */
 function googleOAuthDebugErrors(): void {
-    if (getenv('APP_DEBUG') === '1' || getenv('APP_DEBUG') === 'true') {
+    $debug = (string) env_value('APP_DEBUG', '');
+    if (in_array(strtolower($debug), ['1', 'true', 'yes', 'on'], true)) {
         ini_set('display_errors', '1');
         ini_set('display_startup_errors', '1');
         error_reporting(E_ALL);
     }
 }
 
-// ── Configuration (override via env: GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, GOOGLE_REDIRECT_URI)
-define('GOOGLE_CLIENT_ID', $_ENV['GOOGLE_CLIENT_ID'] ?? getenv('GOOGLE_CLIENT_ID') ?: '');
-define('GOOGLE_CLIENT_SECRET', $_ENV['GOOGLE_CLIENT_SECRET'] ?? getenv('GOOGLE_CLIENT_SECRET') ?: '');
+// ── Configuration (set in hosting env / .env — see auth/oauth-setup.php)
+define('GOOGLE_OAUTH_CALLBACK_PATH', 'auth/google-callback.php');
+define('GOOGLE_CLIENT_ID', (string) env_value('GOOGLE_CLIENT_ID', ''));
+define('GOOGLE_CLIENT_SECRET', (string) env_value('GOOGLE_CLIENT_SECRET', ''));
+
+/** Whether Google Sign-In can run (client id + secret present in env). */
+function isGoogleOAuthConfigured(): bool {
+    return GOOGLE_CLIENT_ID !== '' && GOOGLE_CLIENT_SECRET !== '';
+}
 
 /**
- * OAuth redirect URI for the current request (must match Google Cloud Console exactly).
- * Override with GOOGLE_REDIRECT_URI in .env only if auto-detection is wrong.
+ * Redirect URI derived from APP_URL (second-priority fallback).
+ */
+function googleRedirectUriFromAppUrl(): string {
+    $appUrl = rtrim((string) env_value('APP_URL', ''), '/');
+    if ($appUrl === '') {
+        return '';
+    }
+    return $appUrl . '/' . GOOGLE_OAUTH_CALLBACK_PATH;
+}
+
+/**
+ * Redirect URI from the current HTTP request (ignores APP_URL override).
+ */
+function googleRedirectUriFromRequest(): string {
+    $relative = url(GOOGLE_OAUTH_CALLBACK_PATH);
+    if ($relative === '' || $relative[0] !== '/') {
+        $relative = '/' . ltrim($relative, '/');
+    }
+    return request_origin() . $relative;
+}
+
+/**
+ * Redirect URI from the current HTTP request (lowest-priority fallback).
+ */
+function googleRedirectUriAutoDetected(): string {
+    if (!empty($_SERVER['HTTP_HOST'])) {
+        return googleRedirectUriFromRequest();
+    }
+    return absolute_url(GOOGLE_OAUTH_CALLBACK_PATH);
+}
+
+/**
+ * OAuth redirect URI sent to Google (must match Google Cloud Console exactly).
+ *
+ * Priority: GOOGLE_REDIRECT_URI → APP_URL + callback path → auto-detected host.
  */
 function googleRedirectUri(): string {
     static $uri = null;
@@ -42,14 +95,59 @@ function googleRedirectUri(): string {
         return $uri;
     }
 
-    $env = getenv('GOOGLE_REDIRECT_URI');
-    if ($env !== false && $env !== '') {
-        $uri = rtrim($env, '/');
+    $explicit = rtrim((string) env_value('GOOGLE_REDIRECT_URI', ''), '/');
+    if ($explicit !== '') {
+        $uri = $explicit;
         return $uri;
     }
 
-    $uri = absolute_url('auth/google-callback.php');
+    $fromAppUrl = googleRedirectUriFromAppUrl();
+    if ($fromAppUrl !== '') {
+        $uri = $fromAppUrl;
+        return $uri;
+    }
+
+    $uri = googleRedirectUriAutoDetected();
     return $uri;
+}
+
+/**
+ * Snapshot for /auth/oauth-setup.php and deployment checks.
+ *
+ * @return array{
+ *   configured: bool,
+ *   client_id_set: bool,
+ *   client_secret_set: bool,
+ *   redirect_uri: string,
+ *   redirect_uri_source: 'GOOGLE_REDIRECT_URI'|'APP_URL'|'auto',
+ *   redirect_uri_auto: string,
+ *   app_url: string,
+ *   mismatch: bool
+ * }
+ */
+function googleOAuthDiagnostics(): array {
+    $explicit = rtrim((string) env_value('GOOGLE_REDIRECT_URI', ''), '/');
+    $fromAppUrl = googleRedirectUriFromAppUrl();
+    $auto = googleRedirectUriAutoDetected();
+    $redirectUri = googleRedirectUri();
+
+    $source = 'auto';
+    if ($explicit !== '') {
+        $source = 'GOOGLE_REDIRECT_URI';
+    } elseif ($fromAppUrl !== '') {
+        $source = 'APP_URL';
+    }
+
+    return [
+        'configured'          => isGoogleOAuthConfigured(),
+        'client_id_set'       => GOOGLE_CLIENT_ID !== '',
+        'client_secret_set'   => GOOGLE_CLIENT_SECRET !== '',
+        'redirect_uri'        => $redirectUri,
+        'redirect_uri_source' => $source,
+        'redirect_uri_auto'   => $auto,
+        'app_url'             => rtrim((string) env_value('APP_URL', ''), '/'),
+        'mismatch'            => $explicit !== '' && $explicit !== $auto,
+    ];
 }
 
 define('GOOGLE_AUTH_URL',  'https://accounts.google.com/o/oauth2/v2/auth');
@@ -60,6 +158,12 @@ define('GOOGLE_INFO_URL',  'https://www.googleapis.com/oauth2/v3/userinfo');
  * Build the Google sign-in URL the user should be redirected to.
  */
 function googleAuthUrl(string $state = ''): string {
+    if (!isGoogleOAuthConfigured()) {
+        throw new RuntimeException(
+            'Google OAuth is not configured. Set GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET in your hosting environment variables (Railway Variables, or .env locally).'
+        );
+    }
+
     $params = [
         'client_id'     => GOOGLE_CLIENT_ID,
         'redirect_uri'  => googleRedirectUri(),
@@ -132,6 +236,11 @@ function googleHttpGet(string $url, array $headers = []): ?string {
 }
 
 function googleExchangeCode(string $code): ?array {
+    if (!isGoogleOAuthConfigured()) {
+        error_log('Google token exchange skipped: OAuth credentials missing');
+        return null;
+    }
+
     $postData = http_build_query([
         'code'          => $code,
         'client_id'     => GOOGLE_CLIENT_ID,
@@ -168,6 +277,7 @@ function googleUserInfo(string $accessToken): ?array {
  * Find a user by Google subject id.
  */
 function findUserByGoogleId(string $googleId): ?array {
+    googleOAuthLoadDeps();
     $user = db_select('users', 'google_id=eq.' . urlencode($googleId), true);
     return $user ? hydrateUserSensitiveFields($user) : null;
 }
@@ -183,6 +293,7 @@ function findUserByGoogleId(string $googleId): ?array {
  * Returns ['success' => true, 'user' => [...]] or ['success' => false, 'error' => '...'].
  */
 function handleGoogleLogin(array $googleUser): array {
+    googleOAuthLoadDeps();
     $googleId  = $googleUser['sub']     ?? '';
     $email     = $googleUser['email']   ?? '';
     $name      = $googleUser['name']    ?? 'Google User';
@@ -255,7 +366,7 @@ function handleGoogleLogin(array $googleUser): array {
  * Start session and notify after Google auth is complete.
  */
 function finalizeGoogleSession(array $user, string $message = 'You signed in with Google.'): void {
-    require_once __DIR__ . '/users.php';
+    googleOAuthLoadDeps();
     refreshUserSession($user);
 
     createSystemNotification(

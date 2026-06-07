@@ -32,25 +32,6 @@ define('APP_NAME', (string) env_value('APP_NAME', 'BantayPurrPaws'));
 require_once __DIR__ . '/security.php';
 
 /**
- * Read an environment variable with fallback.
- */
-function env_value(string $key, mixed $default = ''): mixed {
-    $v = $_ENV[$key] ?? getenv($key);
-    if ($v === false || $v === null || $v === '') {
-        return $default;
-    }
-    return $v;
-}
-
-function env_bool(string $key, bool $default = false): bool {
-    $v = env_value($key, null);
-    if ($v === null || $v === '') {
-        return $default;
-    }
-    return in_array(strtolower((string) $v), ['1', 'true', 'yes', 'on'], true);
-}
-
-/**
  * Whether the app runs on InfinityFree-style hosting.
  */
 function is_infinityfree_host(): bool {

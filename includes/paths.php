@@ -1,5 +1,9 @@
 <?php
 
+declare(strict_types=1);
+
+require_once __DIR__ . '/env.php';
+
 function app_base(): string {
     static $base = null;
     if ($base !== null) {
@@ -42,7 +46,7 @@ function url(string $path = ''): string {
  */
 function request_scheme(): string {
     if (!empty($_SERVER['HTTP_X_FORWARDED_PROTO'])) {
-        $proto = strtolower(explode(',', $_SERVER['HTTP_X_FORWARDED_PROTO'])[0]);
+        $proto = strtolower(explode(',', (string) $_SERVER['HTTP_X_FORWARDED_PROTO'])[0]);
         return $proto === 'https' ? 'https' : 'http';
     }
     if (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') {
@@ -51,9 +55,9 @@ function request_scheme(): string {
     if (isset($_SERVER['SERVER_PORT']) && (int) $_SERVER['SERVER_PORT'] === 443) {
         return 'https';
     }
-    // InfinityFree and similar hosts terminate TLS at the edge but may not set HTTPS=on
+    // Reverse proxies / shared hosts that terminate TLS but may not set HTTPS=on
     $host = $_SERVER['HTTP_HOST'] ?? '';
-    if (preg_match('/\.(infinityfree\.me|infinityfreeapp\.com|rf\.gd|42web\.io)$/i', $host)) {
+    if (preg_match('/\.(infinityfree\.me|infinityfreeapp\.com|rf\.gd|42web\.io|epizy\.com|railway\.app)$/i', $host)) {
         return 'https';
     }
     return 'http';
@@ -64,26 +68,36 @@ function request_scheme(): string {
  */
 function request_host(): string {
     if (!empty($_SERVER['HTTP_X_FORWARDED_HOST'])) {
-        return trim(explode(',', $_SERVER['HTTP_X_FORWARDED_HOST'])[0]);
+        return trim(explode(',', (string) $_SERVER['HTTP_X_FORWARDED_HOST'])[0]);
     }
     if (!empty($_SERVER['HTTP_HOST'])) {
-        return $_SERVER['HTTP_HOST'];
+        return (string) $_SERVER['HTTP_HOST'];
     }
 
-    // Fall back to an explicit APP_URL or GOOGLE_REDIRECT_URI set in the environment
-    $envHost = '';
-    $appUrl = getenv('APP_URL') ?: ($_ENV['APP_URL'] ?? false);
-    if ($appUrl) {
+    $appUrl = (string) env_value('APP_URL', '');
+    if ($appUrl !== '') {
         $envHost = parse_url($appUrl, PHP_URL_HOST) ?: '';
-    }
-    if ($envHost === '') {
-        $gRedirect = getenv('GOOGLE_REDIRECT_URI') ?: ($_ENV['GOOGLE_REDIRECT_URI'] ?? false);
-        if ($gRedirect) {
-            $envHost = parse_url($gRedirect, PHP_URL_HOST) ?: '';
+        if ($envHost !== '') {
+            return $envHost;
         }
     }
 
-    return $envHost !== '' ? $envHost : 'localhost';
+    $gRedirect = (string) env_value('GOOGLE_REDIRECT_URI', '');
+    if ($gRedirect !== '') {
+        $envHost = parse_url($gRedirect, PHP_URL_HOST) ?: '';
+        if ($envHost !== '') {
+            return $envHost;
+        }
+    }
+
+    return 'localhost';
+}
+
+/**
+ * Origin from the active HTTP request only.
+ */
+function request_origin(): string {
+    return request_scheme() . '://' . request_host();
 }
 
 /**
@@ -111,32 +125,25 @@ function app_origin(): string {
         return $origin;
     }
 
-    $env = getenv('APP_URL');
-    if ($env !== false && $env !== '') {
-        $origin = rtrim($env, '/');
+    $appUrl = rtrim((string) env_value('APP_URL', ''), '/');
+    if ($appUrl !== '') {
+        $origin = $appUrl;
         return $origin;
     }
 
-    // Prefer the host the user actually opened (sql103.infinityfree.com vs InfinityFree, etc.)
     if (!empty($_SERVER['HTTP_HOST'])) {
-        $origin = request_scheme() . '://' . request_host();
+        $origin = request_origin();
         return $origin;
     }
 
     $fromFile = oauthConfig()['app_url'] ?? '';
     if ($fromFile !== '') {
-        $origin = rtrim($fromFile, '/');
-        return $origin;
-    }
-    // Final fallback: try to construct origin from env variables, then default host.
-    $envUrl = getenv('APP_URL') ?: ($_ENV['APP_URL'] ?? false);
-    if ($envUrl) {
-        $origin = rtrim($envUrl, '/');
+        $origin = rtrim((string) $fromFile, '/');
         return $origin;
     }
 
-    $gRedirect = getenv('GOOGLE_REDIRECT_URI') ?: ($_ENV['GOOGLE_REDIRECT_URI'] ?? false);
-    if ($gRedirect) {
+    $gRedirect = rtrim((string) env_value('GOOGLE_REDIRECT_URI', ''), '/');
+    if ($gRedirect !== '') {
         $parts = parse_url($gRedirect);
         if (!empty($parts['scheme']) && !empty($parts['host'])) {
             $origin = $parts['scheme'] . '://' . $parts['host'];
@@ -147,7 +154,7 @@ function app_origin(): string {
         }
     }
 
-    $origin = request_scheme() . '://' . request_host();
+    $origin = request_origin();
     return $origin;
 }
 

@@ -88,11 +88,26 @@ SMTP_PASSWORD=
 
 ---
 
+## Google OAuth "Missing required parameter: client_id"
+
+**Cause:** `GOOGLE_CLIENT_ID` is empty on the server (common on Railway — `.env` is not deployed).
+
+**Fix:**
+1. Visit `/auth/oauth-setup.php` and confirm `GOOGLE_CLIENT_ID` shows **set**.
+2. Add these as hosting **Variables** (Railway) or in `.env` (local):
+   - `GOOGLE_CLIENT_ID`
+   - `GOOGLE_CLIENT_SECRET`
+   - `APP_URL` (no trailing slash)
+   - `GOOGLE_REDIRECT_URI` = `{APP_URL}/auth/google-callback.php`
+3. Redeploy / restart the service after saving variables.
+
+---
+
 ## Google OAuth "redirect_uri_mismatch"
 
 1. Visit `/auth/oauth-setup.php` for the exact URI your server expects.
 2. Add that URI in Google Cloud Console → OAuth client → Authorized redirect URIs.
-3. Match `GOOGLE_REDIRECT_URI` in `.env` character-for-character.
+3. Match `GOOGLE_REDIRECT_URI` in hosting env character-for-character (or set `APP_URL` and let the app derive the callback).
 
 ---
 

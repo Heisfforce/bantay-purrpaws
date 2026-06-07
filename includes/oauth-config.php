@@ -5,18 +5,22 @@
  *
  * Set APP_URL in .env to force a canonical site URL when needed.
  */
-// Return canonical app URL for CLI or when auto-detection is undesirable.
-// Prefer explicit `APP_URL` in the environment, fall back to `GOOGLE_REDIRECT_URI`,
-// then to the historical hard-coded host.
-$appUrl = getenv('APP_URL') ?: ($_ENV['APP_URL'] ?? false);
-if ($appUrl && $appUrl !== '') {
-    return ['app_url' => rtrim($appUrl, '/')];
+declare(strict_types=1);
+
+require_once __DIR__ . '/env.php';
+
+if (!defined('APP_ENV')) {
+    load_env_file(dirname(__DIR__) . '/.env');
 }
 
-$g = getenv('GOOGLE_REDIRECT_URI') ?: ($_ENV['GOOGLE_REDIRECT_URI'] ?? false);
-if ($g && $g !== '') {
-    $u = rtrim($g, '/');
-    $parts = parse_url($u);
+$appUrl = rtrim((string) env_value('APP_URL', ''), '/');
+if ($appUrl !== '') {
+    return ['app_url' => $appUrl];
+}
+
+$redirect = rtrim((string) env_value('GOOGLE_REDIRECT_URI', ''), '/');
+if ($redirect !== '') {
+    $parts = parse_url($redirect);
     if (!empty($parts['scheme']) && !empty($parts['host'])) {
         $base = $parts['scheme'] . '://' . $parts['host'];
         if (!empty($parts['port'])) {
@@ -26,6 +30,4 @@ if ($g && $g !== '') {
     }
 }
 
-return [
-    'app_url' => '',
-];
+return ['app_url' => ''];
