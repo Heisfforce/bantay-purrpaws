@@ -7,7 +7,7 @@ require_once __DIR__ . '/sensitive-data.php';
 
 function sessionCookiePath(): string {
     $host = request_host();
-    if (preg_match('/\.(infinityfree\.me|infinityfreeapp\.com|rf\.gd|42web\.io)$/i', $host)) {
+    if (preg_match('/\.(infinityfree\.me|infinityfreeapp\.com|rf\.gd|42web\.io|epizy\.com|railway\.app)$/i', $host)) {
         return '/';
     }
     $base = app_base();

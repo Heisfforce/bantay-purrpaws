@@ -153,6 +153,75 @@ function googleOAuthDiagnostics(): array {
 define('GOOGLE_AUTH_URL',  'https://accounts.google.com/o/oauth2/v2/auth');
 define('GOOGLE_TOKEN_URL', 'https://oauth2.googleapis.com/token');
 define('GOOGLE_INFO_URL',  'https://www.googleapis.com/oauth2/v3/userinfo');
+define('GOOGLE_OAUTH_STATE_TTL', 900);
+
+/**
+ * Secret for signing OAuth state (session-independent — survives Google redirect).
+ */
+function googleOAuthStateSecret(): string {
+    static $secret = null;
+    if ($secret !== null) {
+        return $secret;
+    }
+
+    $raw = function_exists('data_encryption_key_raw') ? data_encryption_key_raw() : '';
+    if ($raw !== '') {
+        if (str_starts_with($raw, 'base64:')) {
+            $decoded = base64_decode(substr($raw, 7), true);
+            $secret  = ($decoded !== false && $decoded !== '') ? $decoded : $raw;
+        } else {
+            $secret = $raw;
+        }
+        return $secret;
+    }
+
+    $secret = (string) env_value('GOOGLE_CLIENT_SECRET', '')
+        . '|'
+        . (string) env_value('BREVO_API_KEY', 'bpp-oauth-state');
+    return $secret;
+}
+
+/**
+ * Create a signed OAuth state token (does not require PHP session on callback).
+ */
+function googleOAuthStateCreate(): string {
+    $nonce = bin2hex(random_bytes(16));
+    $exp   = (string) (time() + GOOGLE_OAUTH_STATE_TTL);
+    $sig   = hash_hmac('sha256', $nonce . '|' . $exp, googleOAuthStateSecret());
+    return rtrim(strtr(base64_encode($nonce . '|' . $exp . '|' . $sig), '+/', '-_'), '=');
+}
+
+/**
+ * Verify OAuth state from Google's callback.
+ */
+function googleOAuthStateVerify(string $state): bool {
+    if ($state === '') {
+        return false;
+    }
+
+    $pad   = strlen($state) % 4;
+    $b64   = $state . ($pad ? str_repeat('=', 4 - $pad) : '');
+    $raw   = base64_decode(strtr($b64, '-_', '+/'), true);
+    if ($raw === false) {
+        return false;
+    }
+
+    $parts = explode('|', $raw, 3);
+    if (count($parts) !== 3) {
+        return false;
+    }
+
+    [$nonce, $exp, $sig] = $parts;
+    if ($nonce === '' || $exp === '' || $sig === '' || !ctype_xdigit($nonce)) {
+        return false;
+    }
+    if ((int) $exp < time()) {
+        return false;
+    }
+
+    $expected = hash_hmac('sha256', $nonce . '|' . $exp, googleOAuthStateSecret());
+    return hash_equals($expected, $sig);
+}
 
 /**
  * Build the Google sign-in URL the user should be redirected to.

@@ -26,11 +26,14 @@ if (isLoggedIn()) {
 $error = '';
 
 do {
-    $state         = $_GET['state'] ?? '';
-    $expectedState = $_SESSION['oauth_state'] ?? '';
+    $state         = (string) ($_GET['state'] ?? '');
+    $expectedState = (string) ($_SESSION['oauth_state'] ?? '');
     unset($_SESSION['oauth_state']);
 
-    if ($state !== $expectedState || $expectedState === '') {
+    $stateOk = googleOAuthStateVerify($state)
+        || ($expectedState !== '' && hash_equals($expectedState, $state));
+
+    if (!$stateOk) {
         $error = 'Invalid OAuth state. Please try again.';
         break;
     }

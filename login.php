@@ -20,8 +20,9 @@ if (isset($_GET['google'])) {
     if (!isGoogleOAuthConfigured()) {
         $error = 'Google Sign-In is not configured on this server. Set GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET in hosting Variables or .env.';
     } else {
-        $state = bin2hex(random_bytes(16));
+        $state = googleOAuthStateCreate();
         $_SESSION['oauth_state'] = $state;
+        session_write_close();
         header('Location: ' . googleAuthUrl($state));
         exit;
     }
