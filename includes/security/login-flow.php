@@ -109,13 +109,18 @@ function startLoginAttempt(string $email, string $password, ?string $clientFinge
 
     incrementFingerprintRisk($context['fingerprint_hash'], false);
 
-    $plainEmail = resolveDeliverableEmail($user, $email);
+    $plainEmail = resolveDeliverableEmail($user, $email, true);
     if ($plainEmail === '') {
         db_update('login_attempts', ['status' => 'failed'], 'attempt_token=eq.' . urlencode($attemptToken));
         return ['success' => false, 'message' => 'Could not resolve your email address. Please contact support.'];
     }
 
     repairUserEmailIfNeeded((int) $user['id'], $user, $plainEmail);
+
+    if (!mail_is_configured()) {
+        db_update('login_attempts', ['status' => 'failed'], 'attempt_token=eq.' . urlencode($attemptToken));
+        return ['success' => false, 'message' => 'Email service is not configured on this server. Contact the administrator.'];
+    }
 
     $sent = sendLoginAttemptEmail(
         $plainEmail,
@@ -157,7 +162,18 @@ function deliverableEmailForUser(int $userId, string $fallbackEmail = ''): strin
         startSession();
         $fallbackEmail = (string) ($_SESSION['pending_login_email'] ?? '');
     }
-    return resolveDeliverableEmail($user, $fallbackEmail);
+
+    $resolved = resolveDeliverableEmail($user, $fallbackEmail);
+    if ($resolved !== '') {
+        return $resolved;
+    }
+
+    $fallbackEmail = strtolower(trim($fallbackEmail));
+    if (filter_var($fallbackEmail, FILTER_VALIDATE_EMAIL)) {
+        return $fallbackEmail;
+    }
+
+    return '';
 }
 
 function approveEmailChallenge(string $challengeToken): array {
@@ -314,13 +330,21 @@ function verifyNumberMatch(string $attemptToken, int $selected): array {
     $plainEmail = deliverableEmailForUser($userId);
     $user       = getUserById($userId);
 
+    if ($plainEmail === '') {
+        return ['success' => false, 'message' => 'Could not resolve your email address. Please sign in again.'];
+    }
+
+    if (!mail_is_configured()) {
+        return ['success' => false, 'message' => 'Email service is not configured on this server. Contact the administrator.'];
+    }
+
     $otp = createOtpWithTtl($plainEmail, 'login_security', LOGIN_OTP_TTL);
     if ($otp === false) {
         return ['success' => false, 'message' => 'Too many OTP requests. Please wait and try again.'];
     }
 
     if (!sendOtpEmail($plainEmail, $user['full_name'] ?? 'User', $otp, 'login_security')) {
-        return ['success' => false, 'message' => 'Failed to send OTP email.'];
+        return ['success' => false, 'message' => 'Failed to send OTP email. Check Brevo configuration or try again later.'];
     }
 
     logSecurityEvent('login_number_passed', 'info', (int) $attempt['user_id'], $attempt['ip_address'], $attempt['fingerprint_hash']);

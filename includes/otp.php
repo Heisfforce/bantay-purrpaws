@@ -159,6 +159,15 @@ function verifyOtp(string $email, string $code, string $purpose = 'registration'
  * NOTE: $db parameter removed — call as issueAndSendOtp($email, $name, $purpose)
  */
 function issueAndSendOtp(string $email, string $name, string $purpose = 'registration'): bool|string {
+    if (!mail_is_configured()) {
+        return 'Email service is not configured on this server. Set BREVO_API_KEY and MAIL_FROM in hosting Variables.';
+    }
+
+    $email = strtolower(trim($email));
+    if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
+        return 'Invalid email address.';
+    }
+
     $otp = createOtp($email, $purpose);
 
     if ($otp === false) {

@@ -84,6 +84,11 @@ do {
         'picture' => $googleUser['picture'] ?? null,
     ];
 
+    if (!mail_is_configured()) {
+        $error = 'Email service is not configured on this server. Set BREVO_API_KEY and MAIL_FROM in hosting Variables.';
+        break;
+    }
+
     $localUser = findUserByEmail($email);
 
     $purpose = $localUser ? 'google_link' : 'registration';

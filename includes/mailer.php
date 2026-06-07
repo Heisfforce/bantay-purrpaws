@@ -12,12 +12,21 @@ require_once dirname(__DIR__) . '/config/config.php';
 require_once __DIR__ . '/logger.php';
 
 $c = smtp_config();
-define('BREVO_API_KEY',    $c['brevo_api_key']);
-define('MAIL_FROM',        $c['from_email']);
-define('MAIL_FROM_NAME',   $c['from_name']);
-define('MAIL_DRIVER',      $c['driver']);
-define('APP_NAME',         APP_NAME);
-define('APP_COLOR',        '#7c6f5b');
+if (!defined('BREVO_API_KEY')) {
+    define('BREVO_API_KEY', $c['brevo_api_key']);
+}
+if (!defined('MAIL_FROM')) {
+    define('MAIL_FROM', $c['from_email']);
+}
+if (!defined('MAIL_FROM_NAME')) {
+    define('MAIL_FROM_NAME', $c['from_name']);
+}
+if (!defined('MAIL_DRIVER')) {
+    define('MAIL_DRIVER', $c['driver']);
+}
+if (!defined('MAIL_APP_COLOR')) {
+    define('MAIL_APP_COLOR', '#7c6f5b');
+}
 
 define('BREVO_API_URL', 'https://api.brevo.com/v3/smtp/email');
 
@@ -27,6 +36,11 @@ define('BREVO_API_URL', 'https://api.brevo.com/v3/smtp/email');
 function sendRawEmail(string $to, string $subject, string $htmlBody, string $toName = ''): bool {
     if (!filter_var($to, FILTER_VALIDATE_EMAIL)) {
         bpp_log('mailer', 'error', 'Invalid recipient email address.', ['to' => $to]);
+        return false;
+    }
+
+    if (!mail_is_configured()) {
+        bpp_log('mailer', 'error', 'Email not configured. Set BREVO_API_KEY and MAIL_FROM in hosting Variables or .env.');
         return false;
     }
 
@@ -111,7 +125,17 @@ function sendViaBrevoApi(string $to, string $subject, string $htmlBody, string $
     }
 
     if ($httpCode >= 400) {
-        bpp_log('mailer', 'error', 'Brevo API error.', ['http_code' => $httpCode, 'response' => $response, 'to' => $to]);
+        $hint = '';
+        if ($httpCode === 401 && is_string($response) && str_contains($response, 'IP address')) {
+            $hint = 'Add your server IP in Brevo → Security → Authorised IPs, or disable IP restriction.';
+        } elseif ($httpCode === 401) {
+            $hint = 'Check BREVO_API_KEY in hosting Variables and that MAIL_FROM is verified in Brevo.';
+        }
+        bpp_log('mailer', 'error', 'Brevo API error.' . ($hint !== '' ? ' ' . $hint : ''), [
+            'http_code' => $httpCode,
+            'response'  => $response,
+            'to'        => $to,
+        ]);
         return false;
     }
 
@@ -123,7 +147,7 @@ function sendViaBrevoApi(string $to, string $subject, string $htmlBody, string $
  * Wraps content in a branded email shell.
  */
 function emailShell(string $title, string $innerHtml): string {
-    $color  = APP_COLOR;
+    $color  = MAIL_APP_COLOR;
     $name   = APP_NAME;
     $year   = date('Y');
     return <<<HTML
@@ -192,7 +216,7 @@ function sendOtpEmail(string $to, string $name, string $otp, string $purpose = '
         default          => '15 minutes',
     };
 
-    $color = APP_COLOR;
+    $color = MAIL_APP_COLOR;
     $inner = <<<HTML
 <h2 style="margin:0 0 8px;font-size:20px;color:#2d2520;">Hello, {$name}!</h2>
 <p style="margin:0 0 24px;color:#6b5f56;">
@@ -229,7 +253,7 @@ HTML;
 }
 
 function sendReportApprovedEmail(string $to, string $name, string $reportCode): bool {
-    $color = APP_COLOR;
+    $color = MAIL_APP_COLOR;
     $inner = <<<HTML
 <h2 style="margin:0 0 8px;font-size:20px;color:#2d2520;">Hello, {$name}!</h2>
 <p style="margin:0 0 16px;color:#6b5f56;">
@@ -245,7 +269,7 @@ HTML;
 }
 
 function sendReportRejectedEmail(string $to, string $name, string $reportCode): bool {
-    $color = APP_COLOR;
+    $color = MAIL_APP_COLOR;
     $inner = <<<HTML
 <h2 style="margin:0 0 8px;font-size:20px;color:#2d2520;">Hello, {$name}!</h2>
 <p style="margin:0 0 16px;color:#6b5f56;">
@@ -261,7 +285,7 @@ HTML;
 }
 
 function sendPetSubmissionApprovedEmail(string $to, string $name, string $petName): bool {
-    $color = APP_COLOR;
+    $color = MAIL_APP_COLOR;
     $inner = <<<HTML
 <h2 style="margin:0 0 8px;font-size:20px;color:#2d2520;">Congratulations, {$name}!</h2>
 <p style="margin:0 0 16px;color:#6b5f56;">
@@ -277,7 +301,7 @@ HTML;
 }
 
 function sendPetSubmissionRejectedEmail(string $to, string $name, string $petName): bool {
-    $color = APP_COLOR;
+    $color = MAIL_APP_COLOR;
     $inner = <<<HTML
 <h2 style="margin:0 0 8px;font-size:20px;color:#2d2520;">Hello, {$name}!</h2>
 <p style="margin:0 0 16px;color:#6b5f56;">
@@ -293,7 +317,7 @@ HTML;
 }
 
 function sendAnnouncementEmail(string $to, string $name, string $message, string $linkUrl = 'announcements.php'): bool {
-    $color   = APP_COLOR;
+    $color   = MAIL_APP_COLOR;
     $safeMsg = nl2br(htmlspecialchars($message, ENT_QUOTES, 'UTF-8'));
     $link    = absolute_url(ltrim($linkUrl, '/'));
     $inner   = <<<HTML
@@ -312,7 +336,7 @@ HTML;
     return sendRawEmail($to, APP_NAME . ' — New Announcement', emailShell('New Announcement', $inner), $name);
 }
 function sendStaffInviteEmail(string $to, array $permissions, string $setupLink): bool {
-    $color = APP_COLOR;
+    $color = MAIL_APP_COLOR;
     $permLabels = [
         'manage_reports'     => 'Manage Rescue Reports',
         'manage_pets'        => 'Manage Pet Listings',
@@ -352,7 +376,7 @@ HTML;
 }
 
 function sendPasswordChangedEmail(string $to, string $name): bool {
-    $color = APP_COLOR;
+    $color = MAIL_APP_COLOR;
     $inner = <<<HTML
 <h2 style="margin:0 0 8px;font-size:20px;color:#2d2520;">Hello, {$name}!</h2>
 <p style="margin:0 0 16px;color:#6b5f56;">
@@ -369,7 +393,7 @@ HTML;
 }
 
 function sendRegistrationLinkEmail(string $to, string $name, string $verificationToken): bool {
-    $color = APP_COLOR;
+    $color = MAIL_APP_COLOR;
     $link  = url('auth/verify-registration.php?token=' . urlencode($verificationToken));
     $inner = <<<HTML
 <h2 style="margin:0 0 8px;font-size:20px;color:#2d2520;">Hello, {$name}!</h2>
@@ -395,7 +419,7 @@ HTML;
 }
 
 function sendRegistrationCodeEmail(string $to, string $name, string $code): bool {
-    $color = APP_COLOR;
+    $color = MAIL_APP_COLOR;
     $inner = <<<HTML
 <h2 style="margin:0 0 8px;font-size:20px;color:#2d2520;">Hello, {$name}!</h2>
 <p style="margin:0 0 24px;color:#6b5f56;">
@@ -499,7 +523,7 @@ function verifyEmailDeliverability(string $email): bool|string
  */
 function sendLoginAttemptEmail(string $to, string $name, string $challengeToken, array $context, array $risk): bool {
     require_once __DIR__ . '/paths.php';
-    $color   = APP_COLOR;
+    $color   = MAIL_APP_COLOR;
     $yesUrl  = absolute_url('auth/login-email-response.php?token=' . urlencode($challengeToken) . '&action=yes');
     $noUrl   = absolute_url('auth/login-email-response.php?token=' . urlencode($challengeToken) . '&action=no');
     $time    = date('M j, Y g:i A T');
@@ -532,7 +556,7 @@ HTML;
 }
 
 function sendNumberMatchEmail(string $to, string $name, array $numbers, int $displayNumber, string $deviceLabel): bool {
-    $color = APP_COLOR;
+    $color = MAIL_APP_COLOR;
     $nums  = implode(', ', array_map('intval', $numbers));
     $inner = <<<HTML
 <h2 style="margin:0 0 8px;font-size:20px;color:#2d2520;">Confirm your sign-in</h2>

@@ -134,8 +134,11 @@ function revealEmailFromRow(array $row): string {
 /**
  * Resolve an email address suitable for outbound mail (OTP, login alerts).
  * Uses decrypted/plain stored email, or verified login input as fallback.
+ *
+ * @param bool $trustFallback When true, accept a valid fallback after the caller
+ *                            already verified it belongs to this user (e.g. password check).
  */
-function resolveDeliverableEmail(array $user, string $fallbackEmail = ''): string {
+function resolveDeliverableEmail(array $user, string $fallbackEmail = '', bool $trustFallback = false): string {
     $revealed = revealEmailFromRow($user);
     if (filter_var($revealed, FILTER_VALIDATE_EMAIL)) {
         return strtolower($revealed);
@@ -148,6 +151,10 @@ function resolveDeliverableEmail(array $user, string $fallbackEmail = ''): strin
 
     $expectedHash = sensitiveLookupHash($fallbackEmail);
     if (!empty($user['email_hash']) && hash_equals((string) $user['email_hash'], $expectedHash)) {
+        return $fallbackEmail;
+    }
+
+    if ($trustFallback) {
         return $fallbackEmail;
     }
 
@@ -166,7 +173,13 @@ function repairUserEmailIfNeeded(int $userId, array $user, string $deliverableEm
     if (filter_var($stored, FILTER_VALIDATE_EMAIL)) {
         return;
     }
-    if (isEncryptedValue($stored)) {
+
+    if (isEncryptedValue($stored) || str_starts_with($stored, 'hash:v1:')) {
+        $revealed = decryptSensitiveValue($stored);
+        if ($revealed !== '' && filter_var($revealed, FILTER_VALIDATE_EMAIL)) {
+            return;
+        }
+    } elseif ($stored !== '') {
         return;
     }
 

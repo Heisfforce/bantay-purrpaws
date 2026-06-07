@@ -1,11 +1,8 @@
 FROM php:8.3-cli
 
-# Install pdo_mysql and other required extensions
-RUN docker-php-ext-install pdo pdo_mysql mysqli
-
-# Install curl extension
-RUN apt-get update && apt-get install -y libcurl4-openssl-dev \
-    && docker-php-ext-install curl \
+# Install pdo_mysql, sodium (email encryption), and curl
+RUN apt-get update && apt-get install -y libcurl4-openssl-dev libsodium-dev \
+    && docker-php-ext-install pdo pdo_mysql mysqli curl sodium \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy app files
