@@ -30,6 +30,61 @@ if (!defined('MAIL_APP_COLOR')) {
 
 define('BREVO_API_URL', 'https://api.brevo.com/v3/smtp/email');
 
+/** Last mail delivery error (for diagnostics / user messages). */
+function mailLastError(): string {
+    return $GLOBALS['_bpp_mail_last_error'] ?? '';
+}
+
+function mailSetLastError(string $message): void {
+    $GLOBALS['_bpp_mail_last_error'] = $message;
+}
+
+/**
+ * Test Brevo API key from the server (no email sent).
+ *
+ * @return array{ok: bool, message: string, http_code?: int}
+ */
+function testBrevoConnection(): array {
+    if (BREVO_API_KEY === '') {
+        return ['ok' => false, 'message' => 'BREVO_API_KEY is not set.'];
+    }
+
+    $ch = curl_init('https://api.brevo.com/v3/account');
+    curl_setopt_array($ch, [
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_HTTPHEADER     => [
+            'accept: application/json',
+            'api-key: ' . BREVO_API_KEY,
+        ],
+        CURLOPT_TIMEOUT        => 15,
+    ]);
+    $response = curl_exec($ch);
+    $httpCode = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    $curlErr  = curl_error($ch);
+    curl_close($ch);
+
+    if ($response === false) {
+        return ['ok' => false, 'message' => 'Could not reach Brevo: ' . $curlErr, 'http_code' => 0];
+    }
+
+    if ($httpCode >= 200 && $httpCode < 300) {
+        return ['ok' => true, 'message' => 'Brevo API key is valid from this server.', 'http_code' => $httpCode];
+    }
+
+    $hint = '';
+    if ($httpCode === 401 && str_contains((string) $response, 'IP address')) {
+        $hint = ' Disable IP restriction in Brevo → Security → Authorised IPs, or add your Railway server IP.';
+    } elseif ($httpCode === 401) {
+        $hint = ' Check BREVO_API_KEY in Railway Variables.';
+    }
+
+    return [
+        'ok'        => false,
+        'message'   => 'Brevo API rejected this server (HTTP ' . $httpCode . ').' . $hint,
+        'http_code' => $httpCode,
+    ];
+}
+
 /**
  * Send one email through Brevo. Returns true on success, false on failure.
  */
@@ -76,6 +131,9 @@ function sendRawEmail(string $to, string $subject, string $htmlBody, string $toN
     }
 
     bpp_log('mailer', 'error', 'All email delivery methods failed.', ['to' => $to]);
+    if (mailLastError() === '') {
+        mailSetLastError('Email could not be sent. Check Brevo configuration in Railway Variables.');
+    }
     return false;
 }
 
@@ -130,14 +188,20 @@ function sendViaBrevoApi(string $to, string $subject, string $htmlBody, string $
             $hint = 'Add your server IP in Brevo → Security → Authorised IPs, or disable IP restriction.';
         } elseif ($httpCode === 401) {
             $hint = 'Check BREVO_API_KEY in hosting Variables and that MAIL_FROM is verified in Brevo.';
+        } elseif ($httpCode === 400 && is_string($response) && str_contains($response, 'sender')) {
+            $hint = 'Verify MAIL_FROM (' . MAIL_FROM . ') in Brevo → Senders & Domains.';
         }
-        bpp_log('mailer', 'error', 'Brevo API error.' . ($hint !== '' ? ' ' . $hint : ''), [
+        $msg = 'Brevo API error (HTTP ' . $httpCode . ').' . ($hint !== '' ? ' ' . $hint : '');
+        mailSetLastError($msg);
+        bpp_log('mailer', 'error', $msg, [
             'http_code' => $httpCode,
             'response'  => $response,
             'to'        => $to,
         ]);
         return false;
     }
+
+    mailSetLastError('');
 
     bpp_log('mailer', 'info', 'Email sent.', ['to' => $to, 'subject' => $subject]);
     return true;

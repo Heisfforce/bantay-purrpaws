@@ -187,7 +187,10 @@ function issueAndSendOtp(string $email, string $name, string $purpose = 'registr
             . '&used=eq.false'
         );
         error_log('[OTP] Email send failed for ' . $email . ' (' . $purpose . '). Token invalidated.');
-        return 'Failed to send OTP email. Please check your email address or try again later.';
+        $detail = mailLastError();
+        return $detail !== ''
+            ? 'Failed to send OTP email. ' . $detail
+            : 'Failed to send OTP email. Please check your email address or try again later.';
     }
 
     return true;

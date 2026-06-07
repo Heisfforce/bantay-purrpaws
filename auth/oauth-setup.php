@@ -19,6 +19,7 @@ $authSample  = $diag['configured']
 $mail        = smtp_config();
 $mailReady   = mail_is_configured();
 $sodium      = extension_loaded('sodium');
+$brevoTest   = $mailReady ? testBrevoConnection() : ['ok' => false, 'message' => 'Configure BREVO_API_KEY and MAIL_FROM first.'];
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -116,6 +117,10 @@ $sodium      = extension_loaded('sodium');
         <tr>
             <th>Ready to send mail</th>
             <td><?= $mailReady ? '<span class="ok">yes</span>' : '<span class="bad">no</span>' ?></td>
+        </tr>
+        <tr>
+            <th>Brevo API test</th>
+            <td><?= $brevoTest['ok'] ? '<span class="ok">passed</span>' : '<span class="bad">failed</span> — ' . htmlspecialchars($brevoTest['message']) ?></td>
         </tr>
     </table>
 

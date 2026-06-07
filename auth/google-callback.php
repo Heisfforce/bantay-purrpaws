@@ -5,7 +5,6 @@
  */
 require_once dirname(__DIR__) . '/includes/auth.php';
 require_once dirname(__DIR__) . '/includes/google-oauth.php';
-require_once dirname(__DIR__) . '/includes/otp.php';
 
 googleOAuthDebugErrors();
 startSession();
@@ -85,33 +84,22 @@ do {
         exit;
     }
 
-    // New account or link to existing email — verify via OTP first
-    $_SESSION['google_pending'] = [
-        'sub'     => $googleId,
-        'email'   => $email,
-        'name'    => $name,
-        'picture' => $googleUser['picture'] ?? null,
-    ];
-
-    if (!mail_is_configured()) {
-        $error = 'Email service is not configured on this server. Set BREVO_API_KEY and MAIL_FROM in hosting Variables.';
-        break;
-    }
-
+    // New account or link to existing email — Google already verified this address
     $localUser = findUserByEmail($email);
-
-    $purpose = $localUser ? 'google_link' : 'registration';
-    $otpName = $localUser ? $localUser['full_name'] : $name;
-
-    $result = issueAndSendOtp($email, $otpName, $purpose);
-    if ($result !== true) {
-        unset($_SESSION['google_pending']);
-        $error = is_string($result) ? $result : 'Could not send verification code. Please try again.';
+    $result    = handleGoogleLogin($googleUser);
+    if (!$result['success']) {
+        $error = $result['error'] ?? 'Could not complete Google sign-in. Please try again.';
         break;
     }
 
-    $_SESSION['google_otp_purpose'] = $purpose;
-    header('Location: ' . url('auth/google-verify.php'));
+    $user = $result['user'];
+    $msg  = $localUser
+        ? 'Your Google account was linked successfully.'
+        : 'Welcome! Your Google account is verified.';
+
+    finalizeGoogleSession($user, $msg);
+    flash('success', $msg);
+    header('Location: ' . googlePostLoginUrl($user));
     exit;
 
 } while (false);
