@@ -1,0 +1,13 @@
+# Prevent PHP execution in upload directories (InfinityFree shared hosting)
+<IfModule mod_authz_core.c>
+    <FilesMatch "\.(php|phtml|php3|php4|php5|phar)$">
+        Require all denied
+    </FilesMatch>
+</IfModule>
+<IfModule !mod_authz_core.c>
+    <FilesMatch "\.(php|phtml|php3|php4|php5|phar)$">
+        Deny from all
+    </FilesMatch>
+</IfModule>
+
+Options -Indexes

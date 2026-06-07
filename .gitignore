@@ -1,0 +1,9 @@
+.env
+logs/app.log
+uploads/profiles/*
+uploads/pets/*
+uploads/reports/*
+!uploads/.htaccess
+!uploads/profiles/.gitkeep
+!uploads/pets/.gitkeep
+!uploads/reports/.gitkeep

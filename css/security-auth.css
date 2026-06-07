@@ -1,0 +1,365 @@
+/* ============================================================
+   BantayPurrPaws — Security & auth layout
+   ============================================================ */
+
+/* ── App pages (security settings, history, admin) ─────────── */
+.security-page {
+    width: 100%;
+}
+
+.security-page .page-header h2 {
+    font-family: var(--font-display);
+    font-size: clamp(1.45rem, 3vw, 1.85rem);
+    letter-spacing: -0.02em;
+    color: var(--text-primary);
+    line-height: 1.2;
+    margin: 0;
+}
+
+.security-page .page-header p {
+    margin-top: 6px;
+    margin-bottom: 0;
+}
+
+.security-back-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.875rem;
+    font-weight: 500;
+    color: var(--text-secondary);
+    text-decoration: none;
+    margin-top: 20px;
+}
+
+.security-back-link:hover {
+    color: var(--accent);
+}
+
+/* Admin security tabs */
+.security-tabs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 24px;
+    padding-bottom: 4px;
+}
+
+.security-tabs .btn {
+    white-space: nowrap;
+}
+
+/* Card structure for security tables */
+.security-card .card-header {
+    padding: 18px 24px;
+    border-bottom: 1px solid var(--border, var(--stone-200));
+}
+
+.security-card .card-body {
+    padding: 0;
+}
+
+.security-card .table-wrapper {
+    margin: 0;
+}
+
+.security-card .security-table {
+    margin: 0;
+}
+
+.security-empty {
+    padding: 32px 24px;
+    text-align: center;
+    color: var(--text-muted);
+    font-size: 0.9rem;
+}
+
+/* Block IP / unlock forms */
+.security-form-grid {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 16px;
+    align-items: end;
+}
+
+.security-form-grid .btn {
+    height: fit-content;
+    justify-self: start;
+}
+
+.security-form-inline {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 16px;
+    align-items: flex-end;
+}
+
+.security-form-inline .form-group {
+    flex: 1;
+    min-width: 140px;
+}
+
+/* Status & risk badges */
+.risk-badge {
+    display: inline-flex;
+    align-items: center;
+    font-size: 0.75rem;
+    font-weight: 600;
+    padding: 4px 10px;
+    border-radius: 999px;
+    background: #fef3c7;
+    color: #92400e;
+}
+
+.risk-badge.risk-low { background: #d1fae5; color: #065f46; }
+.risk-badge.risk-medium { background: #fef3c7; color: #92400e; }
+.risk-badge.risk-high { background: #ffedd5; color: #c2410c; }
+.risk-badge.risk-critical { background: #fee2e2; color: #991b1b; }
+
+.status-pill {
+    display: inline-block;
+    padding: 3px 10px;
+    border-radius: 999px;
+    font-size: 0.72rem;
+    font-weight: 600;
+    text-transform: capitalize;
+    white-space: nowrap;
+}
+
+.status-pill.pending { background: #fef3c7; color: #92400e; }
+.status-pill.success { background: #d1fae5; color: #065f46; }
+.status-pill.danger { background: #fee2e2; color: #991b1b; }
+
+.severity-critical { color: #dc2626; font-weight: 600; }
+.severity-warning { color: #d97706; font-weight: 600; }
+.severity-info { color: #2563eb; }
+
+.security-table td,
+.security-table th {
+    font-size: 0.875rem;
+    vertical-align: middle;
+}
+
+.security-table td form {
+    margin: 0;
+}
+
+/* ── Login wizard (used inside login.php card) ─────────────── */
+.login-card .security-panel {
+    display: none;
+    flex-direction: column;
+    gap: 14px;
+}
+
+.login-card .security-panel.active {
+    display: flex;
+}
+
+.login-card .card-mfa-steps {
+    display: flex;
+    align-items: center;
+    gap: 0;
+    margin-bottom: 20px;
+    overflow-x: auto;
+    padding-bottom: 4px;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+}
+
+.login-card .card-mfa-steps::-webkit-scrollbar {
+    display: none;
+}
+
+.login-card .card-mfa-step {
+    flex-shrink: 0;
+}
+
+.login-card .card-mfa-connector {
+    flex: 1;
+    min-width: 8px;
+    max-width: 24px;
+}
+
+.login-card .card-mfa-connector.done {
+    background: #10b981;
+}
+
+.number-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 10px;
+    margin: 8px 0 4px;
+}
+
+.number-choice {
+    font-size: 1.35rem !important;
+    padding: 16px 8px !important;
+    min-height: 56px;
+}
+
+.display-number-box {
+    text-align: center;
+    background: #faf5f0;
+    border: 2px dashed var(--accent, #8B3A3A);
+    border-radius: 12px;
+    padding: 20px 16px;
+    margin: 8px 0;
+}
+
+.display-number-box .label {
+    font-size: 0.75rem;
+    color: #78716c;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    margin-bottom: 4px;
+}
+
+.display-number-box .value {
+    font-size: 2.5rem;
+    font-weight: 700;
+    color: var(--accent, #8B3A3A);
+    letter-spacing: 0.08em;
+    line-height: 1.1;
+}
+
+.security-wait-icon {
+    font-size: 2.5rem;
+    text-align: center;
+    line-height: 1;
+    animation: security-pulse 2s ease-in-out infinite;
+}
+
+@keyframes security-pulse {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.65; transform: scale(0.98); }
+}
+
+.trust-device-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.85rem;
+    color: #57534e;
+    cursor: pointer;
+}
+
+.trust-device-row input {
+    width: 16px;
+    height: 16px;
+    accent-color: var(--accent, #8B3A3A);
+}
+
+#loginError .login-error-text {
+    flex: 1;
+}
+
+/* Login wizard panels — shell styles live in auth-page.css */
+.security-auth-page {
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+    background: var(--app-bg, var(--stone-50));
+}
+
+.security-auth-panel {
+    width: 100%;
+    max-width: 480px;
+    background: var(--surface);
+    border: 1px solid var(--stone-200);
+    border-radius: var(--radius-xl, 16px);
+    box-shadow: var(--shadow-lg);
+    padding: clamp(32px, 5vw, 48px);
+    text-align: center;
+}
+
+.security-auth-panel .auth-icon {
+    font-size: 3rem;
+    line-height: 1;
+    margin-bottom: 16px;
+}
+
+.security-auth-panel h1 {
+    font-family: var(--font-display);
+    font-size: clamp(1.5rem, 3vw, 1.85rem);
+    letter-spacing: -0.02em;
+    color: var(--text-primary);
+    margin: 0 0 12px;
+}
+
+.security-auth-panel p {
+    color: var(--text-secondary);
+    line-height: 1.65;
+    margin: 0 0 16px;
+    font-size: 0.95rem;
+}
+
+.security-auth-panel .btn {
+    margin-top: 8px;
+}
+
+.security-auth-panel .auth-sub-link {
+    margin-top: 20px;
+    font-size: 0.875rem;
+}
+
+/* ── Responsive ────────────────────────────────────────────── */
+@media (max-width: 900px) {
+    .login-panel {
+        width: 100% !important;
+        margin-left: 0 !important;
+    }
+
+    .login-card .card-mfa-step span {
+        display: none;
+    }
+
+    .login-card .card-mfa-connector {
+        min-width: 6px;
+    }
+}
+
+@media (max-width: 768px) {
+    .security-form-grid {
+        grid-template-columns: 1fr 1fr;
+    }
+
+    .security-form-grid .btn {
+        grid-column: 1 / -1;
+        width: 100%;
+    }
+
+    .security-tabs {
+        gap: 6px;
+    }
+
+    .security-tabs .btn-sm {
+        padding: 8px 12px;
+        font-size: 0.8rem;
+    }
+
+    .number-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .number-choice {
+        width: 100%;
+    }
+}
+
+@media (max-width: 480px) {
+    .security-form-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .display-number-box .value {
+        font-size: 2rem;
+    }
+
+    .security-table th,
+    .security-table td {
+        padding: 8px 10px;
+        font-size: 0.8rem;
+    }
+}

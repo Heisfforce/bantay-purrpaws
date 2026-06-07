@@ -1,0 +1,147 @@
+/* Registration-specific styles inside login-card */
+
+.register-content {
+    animation: auth-fade-up 0.4s 0.34s both;
+}
+
+.reg-status-icon {
+    width: 64px;
+    height: 64px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0 auto 20px;
+    font-size: 1.75rem;
+    font-weight: 700;
+    line-height: 1;
+}
+
+.reg-status-pending {
+    background: rgba(139, 58, 58, 0.1);
+    color: #8B3A3A;
+    border: 2px solid rgba(139, 58, 58, 0.2);
+}
+
+.reg-status-success {
+    background: rgba(16, 185, 129, 0.12);
+    color: #059669;
+    border: 2px solid rgba(16, 185, 129, 0.25);
+}
+
+.reg-status-error {
+    background: rgba(239, 68, 68, 0.1);
+    color: #dc2626;
+    border: 2px solid rgba(239, 68, 68, 0.2);
+}
+
+.login-card .field-error {
+    color: #dc2626;
+    font-size: 0.78rem;
+    margin-top: 4px;
+    display: none;
+}
+
+.login-card .field-error.visible { display: block; }
+
+.login-card .agree-row {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    margin: 4px 0 8px;
+}
+
+.login-card .agree-row input[type=checkbox] {
+    margin: 3px 0 0;
+    width: 16px;
+    height: 16px;
+    accent-color: #8B3A3A;
+    flex-shrink: 0;
+}
+
+.login-card .agree-row label {
+    font-size: 0.875rem;
+    color: #57534e;
+    line-height: 1.5;
+    cursor: pointer;
+}
+
+.login-card .agree-row a {
+    color: #8B3A3A;
+    text-decoration: underline;
+}
+
+.login-card .otp-inputs {
+    display: flex;
+    gap: 10px;
+    justify-content: center;
+    margin: 8px 0 16px;
+}
+
+.login-card .otp-inputs input {
+    width: 46px;
+    height: 54px;
+    text-align: center;
+    font-size: 22px;
+    font-weight: 700;
+    border: 2px solid #e7e5e4;
+    border-radius: 10px;
+    background: #fff;
+    color: #1c1917;
+    font-family: 'DM Sans', system-ui, sans-serif;
+    transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.login-card .otp-inputs input:focus {
+    outline: none;
+    border-color: #8B3A3A;
+    box-shadow: 0 0 0 3px rgba(139, 58, 58, 0.14);
+}
+
+.login-card .resend-row {
+    text-align: center;
+    margin: 8px 0 16px;
+    font-size: 0.8rem;
+    color: #78716c;
+}
+
+.login-card .resend-row button {
+    background: none;
+    border: none;
+    color: #8B3A3A;
+    font-size: 0.8rem;
+    font-weight: 600;
+    cursor: pointer;
+    text-decoration: underline;
+    padding: 0;
+    font-family: inherit;
+}
+
+.login-card .resend-row button:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.login-card .card-alert-error.block,
+.login-card .card-alert-success.block,
+.login-card .card-alert-info.block {
+    display: block;
+    text-align: center;
+    justify-content: center;
+}
+
+@keyframes reg-shake {
+    0%, 100% { transform: translateX(0); }
+    20%, 60%  { transform: translateX(-6px); }
+    40%, 80%  { transform: translateX(6px); }
+}
+
+.login-card .otp-shake { animation: reg-shake 0.35s ease; }
+
+.login-card .resend-timer {
+    display: block;
+    text-align: center;
+    font-size: 0.8rem;
+    color: #a8a29e;
+    margin-top: 4px;
+}

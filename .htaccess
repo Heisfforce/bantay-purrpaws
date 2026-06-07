@@ -1,0 +1,63 @@
+# ============================================================
+# BantayPurrPaws — InfinityFree / Apache .htaccess
+# ============================================================
+
+# Protect environment and secrets
+<IfModule mod_authz_core.c>
+    <Files ".env*">
+        Require all denied
+    </Files>
+    <FilesMatch "^(Dockerfile|composer\.(json|lock)|\.gitignore)$">
+        Require all denied
+    </FilesMatch>
+</IfModule>
+<IfModule !mod_authz_core.c>
+    <Files ".env*">
+        Deny from all
+    </Files>
+</IfModule>
+
+# Block dev/maintenance scripts in production (use deploy/verify.php instead)
+<IfModule mod_authz_core.c>
+    <FilesMatch "^(test_db|seed|migrate_passwords)\.php$">
+        Require all denied
+    </FilesMatch>
+</IfModule>
+<IfModule !mod_authz_core.c>
+    <FilesMatch "^(test_db|seed|migrate_passwords)\.php$">
+        Deny from all
+    </FilesMatch>
+</IfModule>
+
+# Disable directory listing
+Options -Indexes
+
+# Default charset
+AddDefaultCharset UTF-8
+
+# Compression
+<IfModule mod_deflate.c>
+    AddOutputFilterByType DEFLATE text/plain text/html text/xml text/css text/javascript application/javascript application/json
+</IfModule>
+
+# MIME types
+AddType application/json .json
+AddType application/javascript .js
+
+# Security headers (when mod_headers available)
+<IfModule mod_headers.c>
+    Header set X-Content-Type-Options "nosniff"
+    Header set X-Frame-Options "SAMEORIGIN"
+    Header set Referrer-Policy "strict-origin-when-cross-origin"
+</IfModule>
+
+# PHP settings for shared hosting (when allowed)
+<IfModule mod_php.c>
+    php_flag display_errors Off
+    php_value upload_max_filesize 5M
+    php_value post_max_size 6M
+    php_value max_execution_time 60
+</IfModule>
+
+# logs/ protected by logs/.htaccess
+# includes/, sql/, database/, config/ protected by their own .htaccess files
