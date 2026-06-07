@@ -12,7 +12,9 @@ header('Content-Type: text/html; charset=UTF-8');
 
 $diag        = googleOAuthDiagnostics();
 $redirectUri = $diag['redirect_uri'];
-$authSample  = $diag['configured'] ? googleAuthUrl('test-state-only') : '';
+$authSample  = $diag['configured']
+    ? googleAuthUrl(googleOAuthStateCreate($redirectUri), $redirectUri)
+    : '';
 
 $mail        = smtp_config();
 $mailReady   = mail_is_configured();

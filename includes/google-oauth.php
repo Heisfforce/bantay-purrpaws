@@ -90,25 +90,17 @@ function googleRedirectUriAutoDetected(): string {
  * Priority: GOOGLE_REDIRECT_URI → APP_URL + callback path → auto-detected host.
  */
 function googleRedirectUri(): string {
-    static $uri = null;
-    if ($uri !== null) {
-        return $uri;
-    }
-
     $explicit = rtrim((string) env_value('GOOGLE_REDIRECT_URI', ''), '/');
     if ($explicit !== '') {
-        $uri = $explicit;
-        return $uri;
+        return $explicit;
     }
 
     $fromAppUrl = googleRedirectUriFromAppUrl();
     if ($fromAppUrl !== '') {
-        $uri = $fromAppUrl;
-        return $uri;
+        return $fromAppUrl;
     }
 
-    $uri = googleRedirectUriAutoDetected();
-    return $uri;
+    return googleRedirectUriAutoDetected();
 }
 
 /**
@@ -182,60 +174,98 @@ function googleOAuthStateSecret(): string {
 }
 
 /**
- * Create a signed OAuth state token (does not require PHP session on callback).
+ * Base64url encode/decode for OAuth state tokens.
  */
-function googleOAuthStateCreate(): string {
-    $nonce = bin2hex(random_bytes(16));
-    $exp   = (string) (time() + GOOGLE_OAUTH_STATE_TTL);
-    $sig   = hash_hmac('sha256', $nonce . '|' . $exp, googleOAuthStateSecret());
-    return rtrim(strtr(base64_encode($nonce . '|' . $exp . '|' . $sig), '+/', '-_'), '=');
+function googleOAuthBase64UrlEncode(string $raw): string {
+    return rtrim(strtr(base64_encode($raw), '+/', '-_'), '=');
+}
+
+function googleOAuthBase64UrlDecode(string $state): ?string {
+    if ($state === '') {
+        return null;
+    }
+    $pad = strlen($state) % 4;
+    $b64 = $state . ($pad ? str_repeat('=', 4 - $pad) : '');
+    $raw = base64_decode(strtr($b64, '-_', '+/'), true);
+    return $raw === false ? null : $raw;
 }
 
 /**
- * Verify OAuth state from Google's callback.
+ * Create a signed OAuth state token (embeds redirect URI for token exchange).
  */
-function googleOAuthStateVerify(string $state): bool {
-    if ($state === '') {
-        return false;
+function googleOAuthStateCreate(string $redirectUri): string {
+    $redirectUri = rtrim($redirectUri, '/');
+    $nonce         = bin2hex(random_bytes(16));
+    $exp           = (string) (time() + GOOGLE_OAUTH_STATE_TTL);
+    $payload       = $nonce . '|' . $exp . '|' . $redirectUri;
+    $sig           = hash_hmac('sha256', $payload, googleOAuthStateSecret());
+    return googleOAuthBase64UrlEncode($payload . '|' . $sig);
+}
+
+/**
+ * Parse and verify OAuth state. Returns null when invalid.
+ *
+ * @return array{valid: bool, redirect_uri: string}|null
+ */
+function googleOAuthStateParse(string $state): ?array {
+    $raw = googleOAuthBase64UrlDecode($state);
+    if ($raw === null) {
+        return null;
     }
 
-    $pad   = strlen($state) % 4;
-    $b64   = $state . ($pad ? str_repeat('=', 4 - $pad) : '');
-    $raw   = base64_decode(strtr($b64, '-_', '+/'), true);
-    if ($raw === false) {
-        return false;
+    $parts = explode('|', $raw);
+    if (count($parts) === 4) {
+        [$nonce, $exp, $redirectUri, $sig] = $parts;
+    } elseif (count($parts) === 3) {
+        // Legacy state (no embedded redirect URI)
+        [$nonce, $exp, $sig] = $parts;
+        $redirectUri = '';
+    } else {
+        return null;
     }
 
-    $parts = explode('|', $raw, 3);
-    if (count($parts) !== 3) {
-        return false;
-    }
-
-    [$nonce, $exp, $sig] = $parts;
     if ($nonce === '' || $exp === '' || $sig === '' || !ctype_xdigit($nonce)) {
-        return false;
+        return null;
     }
     if ((int) $exp < time()) {
-        return false;
+        return null;
     }
 
-    $expected = hash_hmac('sha256', $nonce . '|' . $exp, googleOAuthStateSecret());
-    return hash_equals($expected, $sig);
+    $payload = $redirectUri !== ''
+        ? $nonce . '|' . $exp . '|' . $redirectUri
+        : $nonce . '|' . $exp;
+    $expected = hash_hmac('sha256', $payload, googleOAuthStateSecret());
+    if (!hash_equals($expected, $sig)) {
+        return null;
+    }
+
+    return [
+        'valid'         => true,
+        'redirect_uri'  => $redirectUri,
+    ];
+}
+
+/** Verify OAuth state from Google's callback. */
+function googleOAuthStateVerify(string $state): bool {
+    $parsed = googleOAuthStateParse($state);
+    return $parsed !== null && $parsed['valid'];
 }
 
 /**
  * Build the Google sign-in URL the user should be redirected to.
  */
-function googleAuthUrl(string $state = ''): string {
+function googleAuthUrl(string $state = '', ?string $redirectUri = null): string {
     if (!isGoogleOAuthConfigured()) {
         throw new RuntimeException(
             'Google OAuth is not configured. Set GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET in your hosting environment variables (Railway Variables, or .env locally).'
         );
     }
 
+    $redirectUri = rtrim($redirectUri ?? googleRedirectUri(), '/');
+
     $params = [
         'client_id'     => GOOGLE_CLIENT_ID,
-        'redirect_uri'  => googleRedirectUri(),
+        'redirect_uri'  => $redirectUri,
         'response_type' => 'code',
         'scope'         => 'openid email profile',
         'access_type'   => 'online',
@@ -248,9 +278,68 @@ function googleAuthUrl(string $state = ''): string {
 }
 
 /**
+ * Map Google token endpoint errors to user-facing messages.
+ */
+function googleTokenErrorMessage(string $error, string $description, string $redirectUri): string {
+    return match ($error) {
+        'redirect_uri_mismatch' => 'Redirect URI mismatch. In Google Cloud Console, add exactly: ' . $redirectUri,
+        'invalid_client'        => 'Invalid Google OAuth client secret. Check GOOGLE_CLIENT_SECRET in Railway Variables matches Google Cloud Console.',
+        'invalid_grant'         => 'Authorization code expired or already used. Please click Sign in with Google again.',
+        default                 => 'Google sign-in failed (' . $error . '). ' . ($description !== '' ? $description : 'Please try again.'),
+    };
+}
+
+/**
+ * Exchange an auth code for tokens.
+ *
+ * @return array{ok: bool, tokens?: array, error?: string, google_error?: string}
+ */
+function googleExchangeCodeResult(string $code, ?string $redirectUri = null): array {
+    if (!isGoogleOAuthConfigured()) {
+        return ['ok' => false, 'error' => 'Google OAuth is not configured on this server.', 'google_error' => 'not_configured'];
+    }
+
+    $redirectUri = rtrim($redirectUri ?? googleRedirectUri(), '/');
+
+    $postData = http_build_query([
+        'code'          => $code,
+        'client_id'     => GOOGLE_CLIENT_ID,
+        'client_secret' => GOOGLE_CLIENT_SECRET,
+        'redirect_uri'  => $redirectUri,
+        'grant_type'    => 'authorization_code',
+    ]);
+
+    $response = googleHttpPost(
+        GOOGLE_TOKEN_URL,
+        $postData,
+        ['Content-Type: application/x-www-form-urlencoded']
+    );
+
+    $data = json_decode($response ?: '', true);
+    if (!empty($data['access_token'])) {
+        return ['ok' => true, 'tokens' => $data];
+    }
+
+    $googleError = is_array($data) ? (string) ($data['error'] ?? 'unknown') : 'unknown';
+    $googleDesc  = is_array($data) ? (string) ($data['error_description'] ?? '') : '';
+    error_log('Google token exchange failed: ' . ($response ?: 'empty response'));
+
+    return [
+        'ok'           => false,
+        'error'        => googleTokenErrorMessage($googleError, $googleDesc, $redirectUri),
+        'google_error' => $googleError,
+    ];
+}
+
+/**
  * Exchange an auth code for tokens.
  * Returns the token array or null on failure.
  */
+function googleExchangeCode(string $code, ?string $redirectUri = null): ?array {
+    $result = googleExchangeCodeResult($code, $redirectUri);
+    return $result['ok'] ? $result['tokens'] : null;
+}
+
 function googleHttpPost(string $url, string $body, array $headers = []): ?string {
     if (function_exists('curl_init')) {
         $ch = curl_init($url);
@@ -302,34 +391,6 @@ function googleHttpGet(string $url, array $headers = []): ?string {
     ]);
     $response = @file_get_contents($url, false, $ctx);
     return $response !== false ? $response : null;
-}
-
-function googleExchangeCode(string $code): ?array {
-    if (!isGoogleOAuthConfigured()) {
-        error_log('Google token exchange skipped: OAuth credentials missing');
-        return null;
-    }
-
-    $postData = http_build_query([
-        'code'          => $code,
-        'client_id'     => GOOGLE_CLIENT_ID,
-        'client_secret' => GOOGLE_CLIENT_SECRET,
-        'redirect_uri'  => googleRedirectUri(),
-        'grant_type'    => 'authorization_code',
-    ]);
-
-    $response = googleHttpPost(
-        GOOGLE_TOKEN_URL,
-        $postData,
-        ['Content-Type: application/x-www-form-urlencoded']
-    );
-
-    $data = json_decode($response ?: '', true);
-    if (empty($data['access_token'])) {
-        error_log('Google token exchange failed: ' . ($response ?: 'empty response'));
-        return null;
-    }
-    return $data;
 }
 
 /**

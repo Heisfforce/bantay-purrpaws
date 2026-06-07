@@ -30,13 +30,18 @@ do {
     $expectedState = (string) ($_SESSION['oauth_state'] ?? '');
     unset($_SESSION['oauth_state']);
 
-    $stateOk = googleOAuthStateVerify($state)
+    $parsed  = googleOAuthStateParse($state);
+    $stateOk = ($parsed !== null && $parsed['valid'])
         || ($expectedState !== '' && hash_equals($expectedState, $state));
 
     if (!$stateOk) {
         $error = 'Invalid OAuth state. Please try again.';
         break;
     }
+
+    $oauthRedirectUri = ($parsed['redirect_uri'] ?? '') !== ''
+        ? $parsed['redirect_uri']
+        : googleRedirectUri();
 
     if (!empty($_GET['error'])) {
         $error = 'Google sign-in was cancelled or denied.';
@@ -49,11 +54,12 @@ do {
         break;
     }
 
-    $tokens = googleExchangeCode($code);
-    if (!$tokens) {
-        $error = 'Failed to exchange authorization code. Check that the redirect URI in Google Cloud Console matches: ' . googleRedirectUri();
+    $exchange = googleExchangeCodeResult($code, $oauthRedirectUri);
+    if (!$exchange['ok']) {
+        $error = $exchange['error'] ?? ('Failed to exchange authorization code. Redirect URI used: ' . $oauthRedirectUri);
         break;
     }
+    $tokens = $exchange['tokens'];
 
     $googleUser = googleUserInfo($tokens['access_token']);
     if (!$googleUser) {
